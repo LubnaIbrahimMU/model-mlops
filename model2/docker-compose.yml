@@ -1,3 +1,43 @@
+# version: '3.9'
+
+# services:
+#   ai-app-ml2:
+#     container_name: AI2
+#     build:
+#       context: .
+#       dockerfile: Dockerfile
+#     restart: unless-stopped
+#     ports:
+#       - "8007:8000"
+#     env_file:
+#      - .env
+    
+
+# version: '3.9'
+
+# services:
+#   ai-app-ml2:
+#     container_name: AI2
+#     build:
+#       context: .
+#       dockerfile: Dockerfile
+#     restart: unless-stopped
+#     ports:
+#       - "8007:8000"
+#     env_file:
+#       - .env
+#     deploy:
+#       resources:
+#         reservations:
+#           devices:
+#             - driver: nvidia
+#               count: all
+#               capabilities: [gpu]
+#     # runtime: nvidia  # Optional, needed for some Docker setups
+
+
+
+
 version: '3.9'
 
 services:
@@ -10,5 +50,14 @@ services:
     ports:
       - "8007:8000"
     env_file:
-     - .env
-    
+      - .env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
