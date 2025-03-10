@@ -136,61 +136,6 @@ class TextGenerationRequest(BaseModel):
 # Retrieve the Hugging Face token from an environment variable
 HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN")
 
-# # Load the model and pipeline during startup
-# @app.on_event("startup")
-# async def load_model():
-#     global pipe, tokenizer, model
-#     try:
-#         print("🔹 Checking GPU status before loading model:")
-#         subprocess.run(["nvidia-smi"])
-
-#         # Log in to Hugging Face
-#         if not HUGGINGFACE_TOKEN:
-#             raise ValueError("Hugging Face token is not set. Please set the HUGGINGFACE_TOKEN environment variable.")
-        
-#         print("🔹 Logging into Hugging Face...")
-#         login(token=HUGGINGFACE_TOKEN)
-
-#         # Load the DeepSeek-R1-Distill-Qwen-32B-unsloth-bnb-4bit model
-#         model_id = "unsloth/DeepSeek-R1-Distill-Qwen-32B-unsloth-bnb-4bit"
-
-#         print("🔹 Loading model... (this may take some time)")
-
-#         # Using Unsloth's FastLanguageModel to load the quantized model
-#         model, tokenizer = FastLanguageModel.from_pretrained(
-#             model_name=model_id,
-#             max_seq_length=4096,  # Set appropriate sequence length
-#             dtype=torch.float16,   # Ensure FP16 precision
-#             load_in_4bit=True,     # Important for memory efficiency
-#             device_map={"": 0},    # Force the entire model onto GPU 0
-#             llm_int8_enable_fp32_cpu_offload=True,  # Fixes offloading issue
-#             llm_int8_threshold=6.0,  # Ensures smooth offloading
-#         )
-
-#         # Set up generation config according to the recommendations
-#         model.generation_config.max_new_tokens = 4096
-#         model.generation_config.temperature = 0.6  # Recommended temperature
-#         model.generation_config.top_p = 0.95      # Recommended top_p
-
-#         # Create the pipeline
-#         pipe = pipeline(
-#             "text-generation", 
-#             model=model, 
-#             tokenizer=tokenizer
-#         )
-        
-#         print("✅ Model loaded successfully!")
-
-#         # Perform a local self-test
-#         print("🔹 Performing self-test...")
-#         test_prompt = "Explain how to solve this math problem: What is the sum of the first 100 positive integers?"
-#         result = pipe(test_prompt, max_length=200, num_return_sequences=1, temperature=0.6)
-#         print("✅ Self-test successful! Generated text sample:", result[0]["generated_text"][:100] + "...")
-
-#     except Exception as e:
-#         print(f"❌ Error during model loading or self-test: {e}")
-#         raise RuntimeError(f"Could not load the model: {e}")
-
 @app.on_event("startup")
 async def load_model():
     global pipe, tokenizer, model
@@ -206,7 +151,7 @@ async def load_model():
         login(token=HUGGINGFACE_TOKEN)
 
         # Load the DeepSeek-R1-Distill-Qwen-32B-unsloth-bnb-4bit model
-        model_id = "unsloth/DeepSeek-R1-Distill-Qwen-32B-unsloth-bnb-4bit"
+        model_id = "unsloth/Phi-4-mini-instruct-unsloth-bnb-4bit"
 
         print("🔹 Loading model... (this may take some time)")
 
