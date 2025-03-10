@@ -1,127 +1,17 @@
-# from fastapi import FastAPI, HTTPException
-# from pydantic import BaseModel
-# from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
-# import torch
-# from huggingface_hub import login
-# from dotenv import load_dotenv
-# import os
-# from unsloth import FastLanguageModel  # Add Unsloth import
-
-# load_dotenv()
-
-# # Initialize FastAPI app
-# app = FastAPI()
-
-# # Define input schema using Pydantic
-# class TextGenerationRequest(BaseModel):
-#     prompt: str
-#     max_length: int = 500  # Increased default value for reasoning tasks
-#     num_return_sequences: int = 1
-#     temperature: float = 0.6  # DeepSeek recommends 0.6 temperature
-
-# # Retrieve the Hugging Face token from an environment variable
-# HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN")
-
-# # Load the model and pipeline during startup
-# @app.on_event("startup")
-# async def load_model():
-#     global pipe, tokenizer, model
-#     try:
-#         # Log in to Hugging Face
-#         if not HUGGINGFACE_TOKEN:
-#             raise ValueError("Hugging Face token is not set. Please set the HUGGINGFACE_TOKEN environment variable.")
-        
-#         print("Logging into Hugging Face...")
-#         login(token=HUGGINGFACE_TOKEN)
-
-#         # Load the DeepSeek-R1-Distill-Qwen-32B-unsloth-bnb-4bit model
-#         model_id = "unsloth/DeepSeek-R1-Distill-Qwen-32B-unsloth-bnb-4bit"
-        
-
-#         # unsloth/DeepSeek-R1-Distill-Qwen-32B-GGUF
-
-
-
-
-#         # Using Unsloth's FastLanguageModel to load the quantized model
-#         model, tokenizer = FastLanguageModel.from_pretrained(
-#             model_name=model_id,
-#             max_seq_length=4096,  # Set appropriate sequence length
-#             dtype=torch.bfloat16,
-#             load_in_4bit=True,    # Important to use 4-bit loading
-#             device_map="auto"     # Automatically use available GPUs
-#         )
-        
-#         # Set up generation config according to the recommendations
-#         model.generation_config.max_new_tokens = 4096
-#         model.generation_config.temperature = 0.6  # Recommended temperature
-#         model.generation_config.top_p = 0.95      # Recommended top_p
-        
-#         # Create the pipeline
-#         pipe = pipeline(
-#             "text-generation", 
-#             model=model, 
-#             tokenizer=tokenizer
-#         )
-        
-#         print("Model loaded successfully!")
-
-#         # Perform a local self-test
-#         print("Performing self-test...")
-#         test_prompt = "Explain how to solve this math problem: What is the sum of the first 100 positive integers?"
-#         result = pipe(test_prompt, max_length=200, num_return_sequences=1, temperature=0.6)
-#         print("Self-test successful! Generated text sample:", result[0]["generated_text"][:100] + "...")
-#     except Exception as e:
-#         print(f"Error during model loading or self-test: {e}")
-#         raise RuntimeError(f"Could not load the model: {e}")
-
-# # Define a POST endpoint for text generation
-# @app.post("/generate")
-# async def generate_text(request: TextGenerationRequest):
-#     try:
-#         # As recommended in the model card, avoid system prompts
-#         # and include any instructions directly in the user prompt
-#         results = pipe(
-#             request.prompt, 
-#             max_length=len(tokenizer.encode(request.prompt)) + request.max_length,
-#             num_return_sequences=request.num_return_sequences,
-#             temperature=request.temperature,
-#             top_p=0.95  # Recommended value
-#         )
-        
-#         # Extract the generated text
-#         generated_texts = [result["generated_text"] for result in results]
-#         return {"generated_texts": generated_texts}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Generation failed: {e}")
-
-# # Root endpoint for testing
-# @app.get("/")
-# async def root():
-#     return {
-#         "message": "Welcome to the DeepSeek-R1-Distill-Qwen-32B text-generation API!",
-#         "model_info": "This API uses the 4-bit quantized version of DeepSeek-R1-Distill-Qwen-32B optimized by Unsloth",
-#         "usage_tips": "For mathematical problems, include instructions like 'Please reason step by step, and put your final answer within \\boxed{}'."
-#     }
-
-
-
-
-
-
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from transformers import pipeline, AutoTokenizer
+from torch import bfloat16
 import torch
+import transformers
 from huggingface_hub import login
 from dotenv import load_dotenv
 import os
-from unsloth import FastLanguageModel  # Add Unsloth import
 import subprocess
 
-load_dotenv()
+# Import Unsloth's optimized loading
+from unsloth import FastLanguageModel
 
+load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -129,9 +19,10 @@ app = FastAPI()
 # Define input schema using Pydantic
 class TextGenerationRequest(BaseModel):
     prompt: str
-    max_length: int = 500  # Increased default value for reasoning tasks
+    max_new_tokens: int = 256  # Changed from max_length to match your original code
     num_return_sequences: int = 1
-    temperature: float = 0.6  # DeepSeek recommends 0.6 temperature
+    temperature: float = 0.7  # Set to match your original code
+    do_sample: bool = True  # Added to match your original code
 
 # Retrieve the Hugging Face token from an environment variable
 HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN")
@@ -142,6 +33,12 @@ async def load_model():
     try:
         print("🔹 Checking GPU status before loading model:")
         subprocess.run(["nvidia-smi"])
+        
+        # Print versions to ensure compatibility
+        print(f"PyTorch version: {torch.__version__}")
+        print(f"CUDA available: {torch.cuda.is_available()}")
+        print(f"CUDA version: {torch.version.cuda}")
+        print(f"Transformers version: {transformers.__version__}")
 
         # Log in to Hugging Face
         if not HUGGINGFACE_TOKEN:
@@ -150,41 +47,37 @@ async def load_model():
         print("🔹 Logging into Hugging Face...")
         login(token=HUGGINGFACE_TOKEN)
 
-        # Load the DeepSeek-R1-Distill-Qwen-32B-unsloth-bnb-4bit model
-        model_id = "unsloth/Phi-4-mini-instruct-unsloth-bnb-4bit"
+        # Use the model you specified
+        model_id = "unsloth/Qwen2.5-14B-Instruct-1M-unsloth-bnb-4bit"
 
         print("🔹 Loading model... (this may take some time)")
 
         # Using Unsloth's FastLanguageModel to load the quantized model
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name=model_id,
-            max_seq_length=4096,  # Set appropriate sequence length
-            dtype=torch.float16,   # Ensure FP16 precision
-            load_in_4bit=True,     # Important for memory efficiency
-            device_map="auto",     # Let it decide optimal device mapping
-            # Remove the problematic parameters:
-            # llm_int8_enable_fp32_cpu_offload=True
-            # llm_int8_threshold=6.0
+            max_seq_length=2048,
+            dtype=torch.bfloat16,
+            load_in_4bit=True,
+            device_map="auto",  # Let it decide optimal device mapping
         )
 
-        # Set up generation config according to the recommendations
-        model.generation_config.max_new_tokens = 4096
-        model.generation_config.temperature = 0.6  # Recommended temperature
-        model.generation_config.top_p = 0.95      # Recommended top_p
-
-        # Create the pipeline
+        # Create a text generation pipeline
+        from transformers import pipeline
         pipe = pipeline(
-            "text-generation", 
-            model=model, 
-            tokenizer=tokenizer
+            model=model,
+            tokenizer=tokenizer,
+            task='text-generation',
+            max_new_tokens=256,
+            temperature=0.7,
+            do_sample=True
         )
         
         print("✅ Model loaded successfully!")
 
         # Perform a local self-test
         print("🔹 Performing self-test...")
-        test_prompt = "Explain how to solve this math problem: What is the sum of the first 100 positive integers?"
-        result = pipe(test_prompt, max_length=200, num_return_sequences=1, temperature=0.6)
+        test_prompt = "Explain the benefits of model quantization in simple terms:"
+        result = pipe(test_prompt)
         print("✅ Self-test successful! Generated text sample:", result[0]["generated_text"][:100] + "...")
 
     except Exception as e:
@@ -198,10 +91,10 @@ async def generate_text(request: TextGenerationRequest):
         # Generate text
         results = pipe(
             request.prompt, 
-            max_length=len(tokenizer.encode(request.prompt)) + request.max_length,
+            max_new_tokens=request.max_new_tokens,
             num_return_sequences=request.num_return_sequences,
             temperature=request.temperature,
-            top_p=0.95  # Recommended value
+            do_sample=request.do_sample
         )
 
         # Extract the generated text
@@ -215,7 +108,7 @@ async def generate_text(request: TextGenerationRequest):
 @app.get("/")
 async def root():
     return {
-        "message": "Welcome to the DeepSeek-R1-Distill-Qwen-32B text-generation API!",
-        "model_info": "This API uses the 4-bit quantized version of DeepSeek-R1-Distill-Qwen-32B optimized by Unsloth",
-        "usage_tips": "For mathematical problems, include instructions like 'Please reason step by step, and put your final answer within \\boxed{}'."
+        "message": "Welcome to the Qwen2.5-14B-Instruct text-generation API!",
+        "model_info": "This API uses the 4-bit quantized version of Qwen2.5-14B-Instruct optimized by Unsloth",
+        "usage_example": "Send a POST request to /generate with a JSON body containing your prompt"
     }
