@@ -1,0 +1,86 @@
+---
+# tasks file for snowflake
+
+
+- name: Ensure /opt/app/{{ appDir }}/model directory exists
+  file:
+    path: "/opt/app/{{ appDir }}/model"
+    state: directory
+    mode: '0755'
+
+
+- name: Generate a random port and store it
+  set_fact:
+    dynamic_port: "{{ range(8000, 9000) | random }}"
+
+
+- name: Copy embedding service files
+  template:
+    src: "{{ item }}"
+    dest: "/opt/app/{{appDir}}/model/{{ item }}"
+  loop:
+    - app.py
+    - requirements.txt
+    - Dockerfile
+
+- name: copy variables file
+  template:
+    src: env
+    dest: /opt/app/{{appDir}}/.env
+
+- name: copy docker compose file
+  template:
+    src: docker-compose.yml
+    dest: /opt/app/{{appDir}}
+
+- name: creating necessary directories
+  file:
+    state: directory
+    path: "{{item}}"
+  with_items:
+  - "/opt/app/{{appDir}}/vhosts"
+  - "/opt/app/{{appDir}}/certs"
+  - "/opt/app/{{appDir}}/data_dir"
+  - "/opt/app/{{appDir}}/html"
+
+
+
+- name: copy nginx config of snow
+  template:
+    src: snow.conf
+    dest: /opt/app/{{appDir}}/vhosts/
+
+- name: Debug Cloudflare Variables
+  debug:
+    msg:
+      domain: "{{ domain }}"
+      snow_domain: "{{ snow_domain }}"
+      ec2_instance: "{{ ec2_instance }}"
+
+
+
+- name: add subdomain record for snowflake
+  cloudflare_dns:
+    zone: "{{ domain }}"
+    record: "{{ snow_domain }}"
+    solo: true
+    type: A
+    value: "{{ ec2_instance }}"
+    account_email: "lubnaibrahim000@gmail.com"
+    account_api_key: "{{ cloudflare_api_key }}"
+  tags: cloudflare
+
+- name: print snow subdomain
+  debug:
+    msg: "{{ snow_domain }}.{{ domain }}"
+
+- name: waiting 30 seconds for DNS probagation
+  pause:
+    seconds: 30
+  tags: 
+    - wait
+    
+
+- name: start container
+  shell: |
+    cd /opt/app/{{appDir}} && docker compose  up -d --build

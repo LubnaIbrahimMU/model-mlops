@@ -1,0 +1,11 @@
+appDir: "chromadir"
+# chromaport: 8000
+# dynamic_port: "{{ 8000 | random(start=8000, end=8999) }}"  # Generates a random port in range 8000-8999
+security_group_id: "sg-017f301b21a086f56"  
+aws_region: "us-east-1"
+vpc_id: vpc-079d6946f1cdcf5b9
+container_name: snow
+
+snow_domain: "snow"
+domain: "cloud-stacks.com"
+dynamic_port: "{{ range(8000, 9000) | random }}"
